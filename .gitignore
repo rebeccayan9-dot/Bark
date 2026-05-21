@@ -1,0 +1,15 @@
+# Build / IDE
+.pio/
+.vscode/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+
+# Secrets — credentials must never be committed.
+# Pattern is anchored with ** so it matches at any depth from the repo root.
+# Template at barksense/firmware/include/secrets.h has placeholders; once you
+# fill in real credentials, `git update-index --skip-worktree <path>` ensures
+# this rule actually protects you for the already-tracked template.
+**/firmware/include/secrets.h
