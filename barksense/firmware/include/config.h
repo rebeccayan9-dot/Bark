@@ -29,17 +29,27 @@ constexpr const char* kClassNames[kNumClasses] = {
 // free for stack, DMA, WiFi, and audio buffers.
 constexpr int      kTensorArenaBytes  = 480 * 1024;   // ~457 KB needed + allocator overhead
 constexpr uint32_t kNotifyCooldownMs  = 60'000;  // ntfy POST cooldown
-constexpr uint32_t kPlayCooldownMs    = 60'000;  // owner-voice playback cooldown
+constexpr uint32_t kPlayCooldownMs    = 10'000;  // owner-voice playback cooldown
+
+// Ignore low-confidence predictions. This prevents ordinary speech/noise from
+// triggering bark/growl/grunt actions just because one class had the largest
+// softmax score.
+constexpr float    kActionMinConfidence = 0.75f;
+constexpr float    kActionMinMargin     = 0.25f;
+constexpr float    kAmbientMaxForDogEvent = 0.15f;
+constexpr float    kDogEventMinTotal = 0.85f;
 
 // ── Hardware — XIAO ESP32S3 Sense ────────────────────────────────────────────
 // PDM mic on I2S0 (board-integrated)
 constexpr int kMicClkPin    = 42;
 constexpr int kMicDataPin   = 41;
 
-// MAX98357A speaker on I2S1
-constexpr int kSpkBclkPin   = 1;
-constexpr int kSpkLrclkPin  = 2;
-constexpr int kSpkDinPin    = 3;
+// MAX98357A speaker on I2S1.
+// These are ESP32-S3 GPIO numbers. On the XIAO ESP32S3 edge connector:
+//   GPIO1 = D0, GPIO2 = D1, GPIO3 = D2.
+constexpr int kSpkBclkPin   = 1;  // XIAO D0 -> MAX98357A BCLK
+constexpr int kSpkLrclkPin  = 2;  // XIAO D1 -> MAX98357A LRC / WS
+constexpr int kSpkDinPin    = 3;  // XIAO D2 -> MAX98357A DIN
 
 // Board user LED (single colour, active-low). Colour-coded responses in the
 // spec assume an RGB LED — patch the LED helpers if you wire one up.

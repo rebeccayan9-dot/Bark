@@ -100,11 +100,10 @@ static void extract_features(const int16_t* samples, int8_t* out);
 static int  run_inference();
 
 static void dispatch(int class_id);
-static void handle_bark();
-static void handle_growl();
-static void handle_grunt();
+static void handle_dog_sound(const char* class_name, bool notify);
 
-static bool play_wav(const char* path);                              // STUB
+static bool play_wav(const char* path);
+static bool play_test_tone(uint32_t freq_hz, uint32_t duration_ms);
 static bool post_ntfy(const char* title, const char* body);
 static void log_event(const char* class_name);
 
@@ -131,9 +130,19 @@ void setup() {
     init_i2s_mic();
     init_i2s_spk();
 
-#ifdef FEATURE_TEST
+#if defined(FEATURE_TEST)
     run_feature_test();
     Serial.println("[test] halt — power-cycle to rerun");
+    for (;;) { delay(1000); }
+#elif defined(AUDIO_TEST)
+    Serial.printf("[audio_test] playing %s\n", kOwnerVoicePath);
+    bool ok = play_wav(kOwnerVoicePath);
+    if (!ok) {
+        Serial.println("[audio_test] WAV failed; trying generated test tone");
+        ok = play_test_tone(440, 1200);
+    }
+    Serial.printf("[audio_test] %s — halt, power-cycle to rerun\n",
+                  ok ? "PASS" : "FAIL");
     for (;;) { delay(1000); }
 #else
     init_wifi();          // last; non-fatal if it fails
@@ -211,7 +220,7 @@ static void init_i2s_spk() {
     cfg.mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX);
     cfg.sample_rate          = kSampleRate;
     cfg.bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT;
-    cfg.channel_format       = I2S_CHANNEL_FMT_ONLY_LEFT;
+    cfg.channel_format       = I2S_CHANNEL_FMT_RIGHT_LEFT;
     cfg.communication_format = I2S_COMM_FORMAT_STAND_I2S;
     cfg.intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1;
     cfg.dma_buf_count        = 8;
@@ -452,12 +461,50 @@ static int run_inference() {
         return -1;
     }
     int best = 0;
+    int second = 0;
     int8_t best_v = s_output->data.int8[0];
+    int8_t second_v = INT8_MIN;
     for (int i = 1; i < kNumClasses; i++) {
         if (s_output->data.int8[i] > best_v) {
+            second_v = best_v;
+            second = best;
             best_v = s_output->data.int8[i];
             best   = i;
+        } else if (s_output->data.int8[i] > second_v) {
+            second_v = s_output->data.int8[i];
+            second = i;
         }
+    }
+
+    const float out_scale = s_output->params.scale;
+    const int out_zp = s_output->params.zero_point;
+    float prob[kNumClasses];
+    for (int i = 0; i < kNumClasses; i++) {
+        prob[i] = ((int)s_output->data.int8[i] - out_zp) * out_scale;
+        if (prob[i] < 0.0f) prob[i] = 0.0f;
+        if (prob[i] > 1.0f) prob[i] = 1.0f;
+    }
+
+    const float confidence = prob[best];
+    const float margin = prob[best] - prob[second];
+    const float dog_total = prob[kClassBark] + prob[kClassGrowl] + prob[kClassGrunt];
+    const bool likely_dog_event =
+        prob[kClassAmbient] <= kAmbientMaxForDogEvent || dog_total >= kDogEventMinTotal;
+    Serial.printf("[score] bark=%.2f growl=%.2f grunt=%.2f ambient=%.2f dog=%.2f best=%s margin=%.2f\n",
+                  prob[kClassBark], prob[kClassGrowl], prob[kClassGrunt],
+                  prob[kClassAmbient], dog_total, kClassNames[best], margin);
+
+    if (best != kClassAmbient &&
+        !likely_dog_event &&
+        (confidence < kActionMinConfidence || margin < kActionMinMargin)) {
+        Serial.printf("[infer] %s ignored: confidence=%.2f margin=%.2f\n",
+                      kClassNames[best], confidence, margin);
+        return kClassAmbient;
+    }
+    if (best != kClassAmbient && likely_dog_event &&
+        (confidence < kActionMinConfidence || margin < kActionMinMargin)) {
+        Serial.printf("[infer] %s accepted: dog=%.2f ambient=%.2f\n",
+                      kClassNames[best], dog_total, prob[kClassAmbient]);
     }
     return best;
 }
@@ -468,44 +515,181 @@ static int run_inference() {
 
 static void dispatch(int class_id) {
     switch (class_id) {
-        case kClassBark:    handle_bark();    break;
-        case kClassGrowl:   handle_growl();   break;
-        case kClassGrunt:   handle_grunt();   break;
+        case kClassBark:    handle_dog_sound("bark",  true);  break;
+        case kClassGrowl:   handle_dog_sound("growl", false); break;
+        case kClassGrunt:   handle_dog_sound("grunt", false); break;
         case kClassAmbient: /* no-op */       break;
         default:                              break;
     }
 }
 
-static void handle_bark() {
+static void handle_dog_sound(const char* class_name, bool notify) {
     const uint32_t now = millis();
-    if (now - s_last_notify_ms < kNotifyCooldownMs) return;
-    s_last_notify_ms = now;
-    led_blink(/*times=*/3, /*period_ms=*/120);
-    led_color(0, 0, 255, 0);
-    post_ntfy("BarkSense", "Bark detected");
-    log_event("bark");
-}
+    Serial.printf("[dog] detected as %s\n", class_name);
 
-static void handle_growl() {
-    const uint32_t now = millis();
-    if (now - s_last_play_ms < kPlayCooldownMs) return;
-    s_last_play_ms = now;
-    led_color(255, 0, 0, 5000);
-    play_wav(kOwnerVoicePath);
-    log_event("growl");
-}
+    if (notify && now - s_last_notify_ms >= kNotifyCooldownMs) {
+        s_last_notify_ms = now;
+        post_ntfy("BarkSense", "Dog sound detected");
+    }
 
-static void handle_grunt() {
-    log_event("grunt");
+    if (now - s_last_play_ms >= kPlayCooldownMs) {
+        s_last_play_ms = now;
+        led_blink(/*times=*/3, /*period_ms=*/120);
+        led_color(255, 0, 0, 5000);
+        Serial.println("[dog] playing owner voice");
+        const bool ok = play_wav(kOwnerVoicePath);
+        Serial.println(ok ? "[dog] playback done" : "[dog] playback failed");
+    } else {
+        Serial.printf("[dog] playback cooldown %lu ms remaining\n",
+                      (unsigned long)(kPlayCooldownMs - (now - s_last_play_ms)));
+    }
+
+    log_event(class_name);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// WAV playback — STUB
+// WAV playback
+//   Streams a RIFF/WAVE PCM file from LittleFS to I2S1 (MAX98357A). Strict on
+//   format: 16 kHz / 16-bit / mono / PCM. The mono samples are duplicated into
+//   both I2S slots so the amp works whether SD/MODE selects left, right, or
+//   stereo-average output. Skips aux chunks (LIST/JUNK/etc.) on the way to
+//   'data'. Driver is left installed; DMA is zeroed at the end so the speaker
+//   goes quiet without a tear-down/re-init cycle.
 // ═════════════════════════════════════════════════════════════════════════════
 
 static bool play_wav(const char* path) {
-    Serial.printf("[STUB] play_wav(%s) — not implemented\n", path);
-    return false;
+    File f = LittleFS.open(path, "r");
+    if (!f) {
+        Serial.printf("[wav] open %s failed\n", path);
+        return false;
+    }
+
+    struct __attribute__((packed)) WavHdr {
+        char     riff[4];           // "RIFF"
+        uint32_t chunk_size;
+        char     wave[4];           // "WAVE"
+        char     fmt[4];            // "fmt "
+        uint32_t fmt_size;
+        uint16_t format;            // 1 = PCM
+        uint16_t channels;
+        uint32_t sample_rate;
+        uint32_t byte_rate;
+        uint16_t block_align;
+        uint16_t bits_per_sample;
+    } hdr;
+
+    if (f.read((uint8_t*)&hdr, sizeof(hdr)) != sizeof(hdr)) {
+        Serial.println("[wav] short read on header");
+        f.close();
+        return false;
+    }
+    if (memcmp(hdr.riff, "RIFF", 4) || memcmp(hdr.wave, "WAVE", 4) ||
+        memcmp(hdr.fmt,  "fmt ", 4)) {
+        Serial.println("[wav] not a RIFF/WAVE/fmt file");
+        f.close();
+        return false;
+    }
+    if (hdr.format != 1 || hdr.channels != 1 ||
+        hdr.sample_rate != (uint32_t)kSampleRate || hdr.bits_per_sample != 16) {
+        Serial.printf("[wav] unsupported: fmt=%u ch=%u rate=%lu bits=%u "
+                      "(need PCM/mono/%dHz/16-bit)\n",
+                      hdr.format, hdr.channels,
+                      (unsigned long)hdr.sample_rate, hdr.bits_per_sample,
+                      kSampleRate);
+        f.close();
+        return false;
+    }
+    // fmt chunk may carry extra bytes (WAVE_FORMAT_EXTENSIBLE = 40 B).
+    if (hdr.fmt_size > 16) f.seek(f.position() + (hdr.fmt_size - 16));
+
+    // Walk chunks until we hit 'data'. Skip LIST/JUNK/etc. Pad odd-size chunks.
+    uint32_t data_size = 0;
+    for (;;) {
+        char     id[4];
+        uint32_t sz;
+        if (f.read((uint8_t*)id, 4) != 4 || f.read((uint8_t*)&sz, 4) != 4) {
+            Serial.println("[wav] EOF before 'data' chunk");
+            f.close();
+            return false;
+        }
+        if (!memcmp(id, "data", 4)) { data_size = sz; break; }
+        f.seek(f.position() + sz + (sz & 1));
+    }
+
+    Serial.printf("[wav] PCM 16k/16/mono, %lu bytes (%.2f s)\n",
+                  (unsigned long)data_size, data_size / 32000.0f);
+
+    i2s_zero_dma_buffer(I2S_NUM_1);
+    static int16_t mono[512];         // 1 KB = 16 ms at 16 kHz mono 16-bit
+    static int16_t stereo[1024];      // LRLR, same sample in both slots
+    uint32_t remaining = data_size;
+    while (remaining > 0) {
+        const size_t want = remaining > sizeof(mono) ? sizeof(mono) : remaining;
+        const size_t got  = f.read((uint8_t*)mono, want);
+        if (got == 0) break;
+        const size_t samples = got / sizeof(int16_t);
+        for (size_t i = 0; i < samples; i++) {
+            stereo[2 * i]     = mono[i];
+            stereo[2 * i + 1] = mono[i];
+        }
+        size_t written = 0;
+        const size_t out_bytes = samples * 2 * sizeof(int16_t);
+        const esp_err_t err = i2s_write(I2S_NUM_1, stereo, out_bytes, &written, portMAX_DELAY);
+        if (err != ESP_OK || written != out_bytes) {
+            Serial.printf("[wav] i2s_write err=%d wrote=%u/%u\n",
+                          err, (unsigned)written, (unsigned)out_bytes);
+            f.close();
+            i2s_zero_dma_buffer(I2S_NUM_1);
+            return false;
+        }
+        remaining -= got;
+    }
+
+    // Wait for the DMA queue to drain so we don't cut the tail of the clip,
+    // then silence the line. (i2s_write returns when bytes are queued, not
+    // when they've left the chip.)
+    delay((sizeof(mono) / 2) / (kSampleRate / 1000) + 20);  // ~36 ms safety
+    i2s_zero_dma_buffer(I2S_NUM_1);
+    f.close();
+    return true;
+}
+
+static bool play_test_tone(uint32_t freq_hz, uint32_t duration_ms) {
+    Serial.printf("[tone] %lu Hz for %lu ms\n",
+                  (unsigned long)freq_hz, (unsigned long)duration_ms);
+
+    i2s_zero_dma_buffer(I2S_NUM_1);
+    static int16_t stereo[512];       // 256 stereo frames
+    const uint32_t total_frames = (kSampleRate * duration_ms) / 1000;
+    uint32_t phase = 0;
+    const uint32_t phase_inc = (uint32_t)(((uint64_t)freq_hz << 32) / kSampleRate);
+    uint32_t frames_left = total_frames;
+
+    while (frames_left > 0) {
+        const size_t frames = frames_left > 256 ? 256 : frames_left;
+        for (size_t i = 0; i < frames; i++) {
+            const float x = sinf((phase / 4294967296.0f) * 2.0f * PI);
+            const int16_t sample = (int16_t)(x * 12000.0f);
+            stereo[2 * i]     = sample;
+            stereo[2 * i + 1] = sample;
+            phase += phase_inc;
+        }
+
+        size_t written = 0;
+        const size_t bytes = frames * 2 * sizeof(int16_t);
+        const esp_err_t err = i2s_write(I2S_NUM_1, stereo, bytes, &written, portMAX_DELAY);
+        if (err != ESP_OK || written != bytes) {
+            Serial.printf("[tone] i2s_write err=%d wrote=%u/%u\n",
+                          err, (unsigned)written, (unsigned)bytes);
+            i2s_zero_dma_buffer(I2S_NUM_1);
+            return false;
+        }
+        frames_left -= frames;
+    }
+
+    delay(40);
+    i2s_zero_dma_buffer(I2S_NUM_1);
+    return true;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
