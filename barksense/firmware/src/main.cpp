@@ -1,6 +1,6 @@
 /**
  * BarkSense — on-device dog vocalization classifier
- * XIAO ESP32S3 Sense | DS-CNN α=0.25 INT8 | TFLite Micro
+ * XIAO ESP32S3 Sense | DS-CNN α=1.0 INT8 | TFLite Micro
  *
  * Pipeline (time-multiplexed, single-threaded):
  *   PDM mic (I2S0) → 1-s buffer → on-chip log-mel(40) + Δ + ΔΔ = 120×61 int8
@@ -95,6 +95,7 @@ static void init_tflite();
 static void init_hann();
 
 static bool capture_audio();
+static float clip_rms(const int16_t* x, int n);
 static void fft_inplace(float* buf, int n);
 static void extract_features(const int16_t* samples, int8_t* out);
 static int  run_inference();
@@ -165,6 +166,11 @@ void loop() {
 
 static void init_serial() {
     Serial.begin(115200);
+    // Native USB CDC blocks in write() when the TX buffer fills and the host
+    // isn't draining — that stalls the whole loop (symptom: monitor prints a
+    // line or two then freezes). Drop excess instead of blocking so the
+    // inference loop always runs free.
+    Serial.setTxTimeoutMs(0);
     for (uint32_t t0 = millis(); !Serial && millis() - t0 < 2000; ) {}
 }
 
@@ -252,7 +258,7 @@ static void init_tflite() {
         for (;;) { delay(1000); }
     }
 
-    // Ops actually used by α=0.25 DS-CNN INT8.
+    // Ops actually used by the DS-CNN INT8 (same set across α — width only).
     static tflite::MicroMutableOpResolver<5> resolver;
     resolver.AddConv2D();
     resolver.AddDepthwiseConv2D();
@@ -296,12 +302,31 @@ static void init_hann() {
 // ═════════════════════════════════════════════════════════════════════════════
 
 static bool capture_audio() {
+    // Drain any backlogged audio first. While the loop is blocked (~6 s owner-
+    // voice playback + ~2 s ntfy POST per detection), the mic DMA keeps queuing
+    // samples; without flushing, i2s_read would return that stale audio FIFO and
+    // detections would fall progressively further behind real time (seconds →
+    // minutes). Discard the backlog so each analyzed clip is current.
+    size_t drained = 0;
+    do {
+        i2s_read(I2S_NUM_0, s_audio, sizeof(s_audio), &drained, 0);
+    } while (drained == sizeof(s_audio));
+
     size_t got = 0;
     esp_err_t err = i2s_read(I2S_NUM_0, s_audio, sizeof(s_audio), &got, pdMS_TO_TICKS(2000));
     if (err != ESP_OK || got != sizeof(s_audio)) {
         Serial.printf("[i2s0] read err=%d got=%u\n", err, (unsigned)got);
         return false;
     }
+    // Remove the PDM mic's large DC bias (~1300 here). Training WAVs are DC-free,
+    // so a leftover offset dominates FFT bin 0 / power_to_db(ref=max) and makes
+    // the model see a degenerate feature map (it then emits a near-constant class
+    // on every live clip). Subtracting the mean realigns live audio with the
+    // training distribution.
+    int64_t sum = 0;
+    for (int i = 0; i < kClipSamples; i++) sum += s_audio[i];
+    const int32_t dc = (int32_t)(sum / kClipSamples);
+    for (int i = 0; i < kClipSamples; i++) s_audio[i] = (int16_t)(s_audio[i] - dc);
     return true;
 }
 
@@ -454,7 +479,30 @@ static void extract_features(const int16_t* samples, int8_t* out) {
 // Inference
 // ═════════════════════════════════════════════════════════════════════════════
 
+static float clip_rms(const int16_t* x, int n) {
+    // DC-removed (AC) RMS. The PDM mic carries a large DC/bias component
+    // (~1300-1500 here) that swamps the acoustic signal and barely moves with
+    // sound; sqrt(mean(x^2)) would measure that bias, not loudness. Subtract the
+    // mean first so this reflects actual acoustic energy.
+    double mean = 0.0;
+    for (int i = 0; i < n; i++) mean += (double)x[i];
+    mean /= n;
+    double acc = 0.0;
+    for (int i = 0; i < n; i++) { const double d = (double)x[i] - mean; acc += d * d; }
+    return (float)sqrt(acc / n);
+}
+
 static int run_inference() {
+    // Loudness gate FIRST — skip inference entirely on quiet clips. The model
+    // never saw true silence in training, and per-clip power_to_db(ref=max)
+    // turns a near-silent buffer into a degenerate feature map; running Invoke on
+    // that wastes cycles and can only produce a spurious class. rms is the
+    // DC-removed AC level (quiet room ≈ 15-75 here, real events ≳ 200).
+    const float rms = clip_rms(s_audio, kClipSamples);
+    if (rms < kSilenceRms) {
+        return kClassAmbient;
+    }
+
     extract_features(s_audio, s_input->data.int8);
     if (s_interpreter->Invoke() != kTfLiteOk) {
         Serial.println("[infer] Invoke failed");
@@ -488,25 +536,28 @@ static int run_inference() {
     const float confidence = prob[best];
     const float margin = prob[best] - prob[second];
     const float dog_total = prob[kClassBark] + prob[kClassGrowl] + prob[kClassGrunt];
-    const bool likely_dog_event =
-        prob[kClassAmbient] <= kAmbientMaxForDogEvent || dog_total >= kDogEventMinTotal;
-    Serial.printf("[score] bark=%.2f growl=%.2f grunt=%.2f ambient=%.2f dog=%.2f best=%s margin=%.2f\n",
+    Serial.printf("[score] bark=%.2f growl=%.2f grunt=%.2f ambient=%.2f dog=%.2f best=%s margin=%.2f rms=%.0f\n",
                   prob[kClassBark], prob[kClassGrowl], prob[kClassGrunt],
-                  prob[kClassAmbient], dog_total, kClassNames[best], margin);
+                  prob[kClassAmbient], dog_total, kClassNames[best], margin, rms);
 
-    if (best != kClassAmbient &&
-        !likely_dog_event &&
-        (confidence < kActionMinConfidence || margin < kActionMinMargin)) {
-        Serial.printf("[infer] %s ignored: confidence=%.2f margin=%.2f\n",
-                      kClassNames[best], confidence, margin);
-        return kClassAmbient;
+    // Loud enough to be a real event (quiet was gated before Invoke). Fire a dog
+    // action when the model is
+    // either confident+unambiguous, or clearly points at a dog overall. The
+    // bark/growl split often holds every single class below kActionMinConfidence
+    // even on an obvious bark (e.g. bark=0.59 growl=0.36), so dog_total catches
+    // that. Speech/TV keep dog_total low and fall through to no-op. The silence
+    // gate above is what keeps this dog_total bypass from firing on noise.
+    const bool clear_dog = dog_total >= kDogEventMinTotal;
+    const bool confident = confidence >= kActionMinConfidence && margin >= kActionMinMargin;
+    const bool fire = (best != kClassAmbient) && (clear_dog || confident);
+    if (fire) {
+        return best;
     }
-    if (best != kClassAmbient && likely_dog_event &&
-        (confidence < kActionMinConfidence || margin < kActionMinMargin)) {
-        Serial.printf("[infer] %s accepted: dog=%.2f ambient=%.2f\n",
-                      kClassNames[best], dog_total, prob[kClassAmbient]);
+    if (best != kClassAmbient) {
+        Serial.printf("[infer] %s ignored: confidence=%.2f margin=%.2f dog=%.2f\n",
+                      kClassNames[best], confidence, margin, dog_total);
     }
-    return best;
+    return kClassAmbient;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -515,10 +566,10 @@ static int run_inference() {
 
 static void dispatch(int class_id) {
     switch (class_id) {
-        case kClassBark:    handle_dog_sound("bark",  true);  break;
-        case kClassGrowl:   handle_dog_sound("growl", false); break;
-        case kClassGrunt:   handle_dog_sound("grunt", false); break;
-        case kClassAmbient: /* no-op */       break;
+        case kClassBark:    handle_dog_sound("bark",  true); break;
+        case kClassGrowl:   handle_dog_sound("growl", true); break;
+        case kClassGrunt:   handle_dog_sound("grunt", true); break;
+        case kClassAmbient: /* no-op (includes human speech) */ break;
         default:                              break;
     }
 }
@@ -529,7 +580,9 @@ static void handle_dog_sound(const char* class_name, bool notify) {
 
     if (notify && now - s_last_notify_ms >= kNotifyCooldownMs) {
         s_last_notify_ms = now;
-        post_ntfy("BarkSense", "Dog sound detected");
+        char body[48];
+        snprintf(body, sizeof(body), "Dog detected: %s", class_name);
+        post_ntfy("BarkSense", body);
     }
 
     if (now - s_last_play_ms >= kPlayCooldownMs) {
@@ -615,6 +668,11 @@ static bool play_wav(const char* path) {
         if (!memcmp(id, "data", 4)) { data_size = sz; break; }
         f.seek(f.position() + sz + (sz & 1));
     }
+
+    // Cap playback to ~1.5 s. The loop is single-threaded, so the full clip would
+    // freeze detection for its whole duration; 1.5 s keeps the demo responsive.
+    const uint32_t kMaxPlayBytes = 48000;   // 1.5 s @ 16 kHz / 16-bit / mono
+    if (data_size > kMaxPlayBytes) data_size = kMaxPlayBytes;
 
     Serial.printf("[wav] PCM 16k/16/mono, %lu bytes (%.2f s)\n",
                   (unsigned long)data_size, data_size / 32000.0f);
