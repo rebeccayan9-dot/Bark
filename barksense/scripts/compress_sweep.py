@@ -16,7 +16,7 @@ from sklearn.utils.class_weight import compute_class_weight
 
 ROOT      = Path(__file__).resolve().parent.parent
 MODEL_DIR = ROOT / "model"
-ALPHAS    = [1.0, 0.5, 0.25]
+ALPHAS    = [1.0]
 EPOCHS    = 50
 BATCH     = 32
 LR        = 1e-3
@@ -68,6 +68,27 @@ def make_ds_cnn(input_shape, n_classes, alpha):
     return tf.keras.Model(inp, out, name=f"ds_cnn_a{alpha}")
 
 
+class ValMacroF1(tf.keras.callbacks.Callback):
+    """Inject balanced val macro-F1 into `logs` so the callbacks below key off it
+    instead of `val_loss`.
+
+    The val set is tiny (~60 clips) and ~53% ambient, so an all-ambient predictor
+    scores a *low* unweighted val_loss. Monitoring val_loss let
+    EarlyStopping(restore_best_weights=True) roll the model back into that
+    collapse — val_loss literally rewarded predicting nothing but ambient.
+    Macro-F1 scores a collapsed model ~0.1, so it can never be selected as "best".
+    """
+    def __init__(self, X, y):
+        super().__init__()
+        self.X, self.y = X, y
+
+    def on_epoch_end(self, epoch, logs=None):
+        if logs is None:
+            return
+        preds = self.model.predict(self.X, verbose=0).argmax(1)
+        logs["val_macro_f1"] = f1_score(self.y, preds, average="macro", zero_division=0)
+
+
 def train(alpha):
     tf.random.set_seed(SEED); np.random.seed(SEED)
     model = make_ds_cnn(INPUT_SHAPE, N_CLASSES, alpha)
@@ -76,9 +97,13 @@ def train(alpha):
     cw  = {int(c): float(v) for c, v in zip(cls, w)}
     model.compile(optimizer=tf.keras.optimizers.Adam(LR),
                   loss="sparse_categorical_crossentropy", metrics=["accuracy"])
+    # Monitor balanced macro-F1, not val_loss: on a 53%-ambient val set val_loss
+    # is minimized by the all-ambient collapse, which restore_best_weights would
+    # then lock in. ValMacroF1 must precede the monitors so the metric is in logs.
     cbs = [
-        tf.keras.callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=5, min_lr=1e-5, verbose=0),
-        tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=12, restore_best_weights=True, verbose=0),
+        ValMacroF1(X_val, y_val),
+        tf.keras.callbacks.ReduceLROnPlateau(monitor="val_macro_f1", mode="max", factor=0.5, patience=5, min_lr=1e-5, verbose=0),
+        tf.keras.callbacks.EarlyStopping(monitor="val_macro_f1", mode="max", patience=12, restore_best_weights=True, verbose=0),
     ]
     model.fit(X_train, y_train, validation_data=(X_val, y_val),
               epochs=EPOCHS, batch_size=BATCH, class_weight=cw,
@@ -212,7 +237,7 @@ plt.savefig(MODEL_DIR / "sweep_tradeoff.png", dpi=120)
 
 print("\n" + "=" * 90)
 print(f"{'α':>5s} {'quant':>8s} {'params':>8s} {'size(KB)':>9s} {'arena(KB)':>10s} "
-      f"{'macroF1':>8s}  {'recall  bark/growl/grunt/ambient':<35s}")
+      f"{'macroF1':>8s}  recall {'/'.join(CLASSES)}")
 print("=" * 90)
 for r in results:
     rec = "/".join(f"{x:.2f}" for x in r["per_class_recall"])

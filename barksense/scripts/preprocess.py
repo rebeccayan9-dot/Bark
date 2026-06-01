@@ -5,6 +5,9 @@ Reads:
   data/bark/dog_{bark,growl,grunt}_{train,test}/*.wav   (pre-split)
   data/ambient_{train,test}/**/*.wav  (optional, preferred form)
   data/ambient/**/*.wav               (optional fallback, split 80/20 by seed)
+  data/human/**/*.wav                 (optional, split 80/20 by seed;
+                                        silence-aware windowing; folded into
+                                        ambient — human is not a model class)
 
 Pipeline:
   - resample to 16 kHz mono
@@ -13,9 +16,13 @@ Pipeline:
   - extract log-mel (40 bins) + delta + delta-delta → 120 × T features
     (n_fft=512, hop=256, n_mels=40, center=False)
 
+Classes: bark, growl, grunt, ambient (4). Human speech is folded into ambient
+so that people talking reads as "not a dog event" rather than a false bark.
+
 Train balancing (val/test untouched):
   - ambient downsampled to ~TARGET_PER_CLASS_TRAIN
-  - growl/grunt augmented up to ~TARGET_PER_CLASS_TRAIN
+  - growl/grunt/human augmented up to ~TARGET_PER_CLASS_TRAIN
+    (human is augmented under a sentinel label, then remapped to ambient)
     Augment recipe per copy: ±2 semi pitch shift, ±6 dB gain jitter,
     additive white noise at 20 dB SNR. Augmented clips skip dBFS
     renormalization so gain jitter survives into MFCC.
@@ -53,6 +60,14 @@ TRIM_TOP_DB            = 30.0          # silence threshold for dog clips (libros
 
 LABELS = {"bark": 0, "growl": 1, "grunt": 2, "ambient": 3}
 INV_LABELS = {v: k for k, v in LABELS.items()}
+
+# Human speech is NOT a model class. To stop people talking from triggering a
+# dog event, human voice is folded into ambient: the model learns "human = not a
+# dog event". Human clips are carried through collection + balancing under this
+# temporary sentinel label (so they get augmented to a healthy count instead of
+# being randomly downsampled away with ambient), then remapped to ambient just
+# before features are written.
+HUMAN_TMP_LABEL = 4
 
 ROOT     = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
@@ -136,6 +151,41 @@ def load_segments(d: Path, label: int, trim: bool = False) -> list[tuple[np.ndar
     return out
 
 
+def load_segments_voiced(d: Path, label: int) -> list[tuple[np.ndarray, int]]:
+    """Speech segments: split each file on silence, window only the voiced parts.
+
+    Recordings of people talking are mostly gaps; straight slicing would label
+    those silent windows as the class and teach the model that silence == speech
+    (colliding with ambient). So we split on silence (top_db=TRIM_TOP_DB), then:
+      - voiced region >= 1 s  → non-overlapping 1 s windows (drop trailing < 1 s)
+      - 0.5 s <= region < 1 s → center-pad to 1 s
+      - region < 0.5 s        → dropped (too short to carry a vocalization)
+    """
+    out: list[tuple[np.ndarray, int]] = []
+    if not d.exists():
+        return out
+    half = CLIP_SAMPLES // 2
+    for wav in sorted(d.rglob("*.wav")):
+        try:
+            y, _ = librosa.load(str(wav), sr=SR, mono=True)
+        except Exception as exc:
+            print(f"  [WARN] {wav.name}: {exc}")
+            continue
+        for s, e in librosa.effects.split(y, top_db=TRIM_TOP_DB):
+            seg = y[s:e]
+            if len(seg) >= CLIP_SAMPLES:
+                windows = slice_clips(seg)
+            elif len(seg) >= half:
+                pad = CLIP_SAMPLES - len(seg)
+                left = pad // 2
+                windows = [np.pad(seg, (left, pad - left))]
+            else:
+                continue
+            for w in windows:
+                out.append((normalize_dbfs(w, TARGET_DBFS), label))
+    return out
+
+
 def collect_split(split: str) -> list[tuple[np.ndarray, int]]:
     segs: list[tuple[np.ndarray, int]] = []
 
@@ -161,6 +211,20 @@ def collect_split(split: str) -> list[tuple[np.ndarray, int]]:
     else:
         print(f"  [INFO] no ambient data for {split} — skipping ambient")
 
+    # Human speech: folded into ambient (see HUMAN_TMP_LABEL). Flat dir, split
+    # 80/20 by seed like ambient, but loaded with silence-aware windowing.
+    human_flat = DATA_DIR / "human"
+    if human_flat.exists() and any(human_flat.rglob("*.wav")):
+        all_hum = load_segments_voiced(human_flat, HUMAN_TMP_LABEL)
+        rng = np.random.default_rng(SEED)
+        idx = np.arange(len(all_hum))
+        rng.shuffle(idx)
+        cut = int(0.8 * len(idx))
+        keep = idx[:cut] if split == "train" else idx[cut:]
+        segs.extend([all_hum[i] for i in keep])
+    else:
+        print(f"  [INFO] no human data for {split} — skipping human")
+
     return segs
 
 
@@ -180,9 +244,13 @@ def balance_train(train_segs: list[tuple[np.ndarray, int]],
                            size=TARGET_PER_CLASS_TRAIN, replace=False)
         by_class[amb_lbl] = [by_class[amb_lbl][i] for i in picks]
 
-    # Augment growl & grunt
-    for name in ("growl", "grunt"):
-        lbl = LABELS[name]
+    # Augment bark, growl, grunt & human up toward the target (all under the
+    # ambient count). bark is the smallest class (~104) and was previously left
+    # un-augmented, starving its decision boundary vs growl/grunt — augment it
+    # too. Human is still under its sentinel label here; it gets remapped to
+    # ambient after balancing, so augmenting it now keeps human voice
+    # well-represented in the ambient class rather than diluted by the downsample.
+    for lbl in (LABELS["bark"], LABELS["growl"], LABELS["grunt"], HUMAN_TMP_LABEL):
         if lbl not in by_class or not by_class[lbl]:
             continue
         originals = list(by_class[lbl])
@@ -241,6 +309,11 @@ def main() -> None:
     y_val   = np.array([l for _, l in val_segs], dtype=np.int32)
     X_test  = np.stack([extract_features(s) for s, _ in test_raw])
     y_test  = np.array([l for _, l in test_raw], dtype=np.int32)
+
+    # Fold human → ambient across every split: human is not a model class, it
+    # just must read as "not a dog event".
+    for y in (y_train, y_val, y_test):
+        y[y == HUMAN_TMP_LABEL] = LABELS["ambient"]
 
     np.savez_compressed(OUT_DIR / "train.npz", features=X_train, labels=y_train)
     np.savez_compressed(OUT_DIR / "val.npz",   features=X_val,   labels=y_val)

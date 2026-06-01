@@ -22,7 +22,7 @@ import tensorflow as tf
 from scipy.signal import savgol_coeffs
 
 ROOT      = Path(__file__).resolve().parent.parent
-MODEL     = ROOT / "model" / "ds_cnn_a0.25_int8.tflite"
+MODEL     = ROOT / "model" / "sweep_a1.0_int8.tflite"
 NORM      = ROOT / "model" / "norm_stats.npz"
 TEST_DIR  = ROOT / "data" / "bark" / "dog_bark_test"
 TEST_WAV  = sorted(TEST_DIR.glob("*.wav"))[0]   # first by name — deterministic

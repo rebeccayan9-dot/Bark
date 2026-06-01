@@ -2,12 +2,12 @@
   "source_wav": "data/bark/dog_bark_test/dog_33.wav",
   "expected_class": 0,
   "expected_class_name": "bark",
-  "input_scale": 0.07230392098426819,
+  "input_scale": 0.07331745326519012,
   "input_zero_point": -4,
   "n_frames": 61,
   "feat_dim": 120,
   "feat_value_range": [
-    -91,
-    93
+    -92,
+    96
   ]
 }
