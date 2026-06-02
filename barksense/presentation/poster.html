@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: 594mm 420mm; margin: 0; }   /* A2 landscape */
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html,body { margin:0; padding:0; }
+  body {
+    width:594mm; height:420mm; overflow:hidden;
+    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+    color:#1c2230; background:#ffffff;
+    padding:14mm 16mm;
+  }
+  :root { --red:#d1495b; --blue:#3a6ea5; --ink:#1c2230; --mut:#5b6573; --line:#d9dee6; --bg2:#f4f6f9; }
+
+  /* Header */
+  header { border-bottom:3px solid var(--ink); padding-bottom:6mm; margin-bottom:6mm; }
+  h1 { font-size:62px; margin:0; letter-spacing:-1px; }
+  h1 .dot { color:var(--red); }
+  .tag { font-size:18px; color:var(--mut); margin-top:3mm; max-width:330mm; line-height:1.35; }
+  .privacy { display:inline-block; margin-top:4mm; font-size:14px; font-weight:700; color:#2e7d4f;
+             background:#e7f4ec; border:1px solid #b9e0c8; border-radius:6px; padding:3px 12px; }
+
+  /* System flow strip */
+  .flow { display:flex; align-items:center; gap:8px; margin-top:5mm; font-size:13px; flex-wrap:wrap; }
+  .box { background:var(--bg2); border:1.5px solid var(--line); border-radius:8px; padding:6px 12px; font-weight:600; }
+  .box small{ display:block; color:var(--mut); font-weight:500; font-size:11px; }
+  .arr { color:var(--mut); font-size:18px; }
+  .act { border-color:var(--red); color:var(--red); }
+
+  /* Columns */
+  .cols { display:grid; grid-template-columns: 1fr 1.15fr 1fr; gap:9mm; margin-top:7mm; }
+  h2 { font-size:21px; margin:0 0 3mm; padding-bottom:2mm; border-bottom:2px solid var(--red); }
+  h3 { font-size:15px; margin:4mm 0 2mm; color:var(--ink); }
+  p  { font-size:13px; line-height:1.4; margin:2mm 0; color:#2a3140; }
+
+  table { width:100%; border-collapse:collapse; font-size:12px; margin-top:1mm; }
+  th,td { text-align:left; padding:4px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--mut); font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; }
+  .pass{ color:#2e7d4f; font-weight:700; } .miss{ color:var(--red); font-weight:700; } .warn{ color:#b6862c; font-weight:700; }
+  .num { font-variant-numeric:tabular-nums; }
+
+  .callout { background:#fbeef0; border-left:4px solid var(--red); padding:5px 10px; font-size:12.5px; line-height:1.4; margin-top:3mm; border-radius:0 6px 6px 0; }
+  .callout b{ color:var(--red); }
+
+  img { width:100%; border:1px solid var(--line); border-radius:6px; }
+  .cmrow { display:grid; grid-template-columns:1fr 1fr; gap:5mm; margin-top:3mm; }
+  .cap { font-size:11px; color:var(--mut); margin-top:1mm; line-height:1.3; }
+
+  .jtbl td { font-size:11.5px; line-height:1.35; }
+  .jtbl .sym{ font-weight:700; } .jtbl .fix{ color:#2e7d4f; }
+
+  ul { margin:2mm 0; padding-left:5mm; } li { font-size:12px; line-height:1.45; margin:1mm 0; }
+  .photos { margin-top:9mm; }
+  .photos h2 { display:inline-block; }
+  .pgrid { display:grid; grid-template-columns:repeat(4,1fr); gap:8mm; margin-top:4mm; }
+  .pcard { display:flex; flex-direction:column; }
+  .pcard img { width:100%; height:80mm; object-fit:contain; background:var(--bg2);
+               border:1px solid var(--line); border-radius:10px; }
+  .pcard .lbl { font-size:13px; font-weight:600; color:var(--mut); margin-top:2mm; text-align:center; }
+  .footer { position:absolute; bottom:6mm; right:16mm; font-size:11px; color:var(--mut); }
+  .hw { font-size:11.5px; } .hw td{ padding:3px 6px; }
+  code{ background:var(--bg2); padding:1px 4px; border-radius:3px; font-size:11px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>BarkSense<span class="dot">.</span></h1>
+  <div class="tag">An on-device dog-vocalization classifier on a XIAO ESP32S3. A custom DS-CNN — trained from scratch in Keras, quantized with <code>tf.lite</code>, run on-chip via TFLite Micro — labels 1-second audio windows as <b>bark · growl · grunt · ambient</b> and acts locally.</div>
+  <span class="privacy">🔒 No audio recorded or transmitted — only a class label + timestamp ever leave the device. No cloud, no Edge Impulse, no pre-trained models.</span>
+  <div class="flow">
+    <div class="box">PDM mic<small>I2S0 · 16 kHz</small></div><span class="arr">▶</span>
+    <div class="box">log-mel + Δ + ΔΔ<small>on-chip · 120×61</small></div><span class="arr">▶</span>
+    <div class="box">DS-CNN INT8<small>TFLite Micro</small></div><span class="arr">▶</span>
+    <div class="box act">bark → WiFi push</div>
+    <div class="box act">growl → owner voice</div>
+    <div class="box">grunt → log</div>
+    <div class="box">ambient → ignore</div>
+  </div>
+</header>
+
+<div class="cols">
+
+  <!-- COLUMN 1 -->
+  <section>
+    <h2>Design Targets — scored honestly</h2>
+    <table>
+      <tr><th>Metric</th><th>Target</th><th>Actual</th><th></th></tr>
+      <tr><td>Macro-F1 (4-class)</td><td>≥ 85%</td><td class="num">60%</td><td class="miss">✗</td></tr>
+      <tr><td>Bark recall</td><td>≥ 82%</td><td class="num">41%</td><td class="miss">✗</td></tr>
+      <tr><td>Latency / window</td><td>≤ 500 ms</td><td>~150 ms*</td><td class="warn">~</td></tr>
+      <tr><td>Battery life</td><td>≥ 12 h</td><td>untested</td><td class="warn">·</td></tr>
+      <tr><td>Flash footprint</td><td>≤ 300 KB</td><td class="num">64 KB</td><td class="pass">✓</td></tr>
+      <tr><td>Peak RAM</td><td>≤ 100 KB</td><td class="num">1.8 MB</td><td class="miss">✗</td></tr>
+    </table>
+    <p style="font-size:11px;color:var(--mut)">*feature extraction; α=1.0 <code>Invoke</code> intermittently stalls — see journey. Values for α=1.0 INT8 (best viable model).</p>
+    <div class="callout">The two compute targets split: <b>flash passes easily</b>, but the only accurate-enough model needs <b>18× the RAM budget</b>, forcing it into PSRAM. That single fact drives the whole project.</div>
+
+    <h2 style="margin-top:7mm">Operating Point</h2>
+    <p><b>There is no operating point that meets every target.</b> Best viable accuracy = α=1.0 INT8 (F1 0.60); it stalls on hardware, so the <b>demo ships the small α=0.25</b> (stable, real-time, accepts lower accuracy).</p>
+    <div class="cmrow">
+      <div><img src="cm_a1.0_int8.png"><div class="cap">α=1.0 INT8 — ambient strong (0.98); main error is bark↔growl.</div></div>
+      <div><img src="cm_a0.25_int8.png"><div class="cap">α=0.25 — collapse: everything → one class.</div></div>
+    </div>
+  </section>
+
+  <!-- COLUMN 2 -->
+  <section>
+    <h2>Trade-off Sweep — core deliverable</h2>
+    <img src="tradeoff_sweep.png">
+    <p>DS-CNN width α ∈ {0.25, 0.5, 1.0} × {float32, INT8}, on the locked held-out test set.</p>
+    <ul>
+      <li><b>α = 0.25 and 0.5 collapse</b> — macro-F1 ≈ 0.14, <b>bark recall = 0</b>. Too little capacity for this 4-class task on the available data.</li>
+      <li><b>Only α = 1.0 is viable</b> (INT8: F1 ≈ 0.60, 64 KB) — still below the 85% target.</li>
+      <li><b>INT8 is free here</b>: F1 0.592→0.598 while size 153→64 KB and RAM 7.3→1.8 MB.</li>
+    </ul>
+    <div class="callout">The viable-accuracy region and the RAM-budget region <b>do not overlap</b> — there is no point on this curve that satisfies both.</div>
+  </section>
+
+  <!-- COLUMN 3 -->
+  <section>
+    <h2>Diagnostic Journey</h2>
+    <table class="jtbl">
+      <tr><th>Failure</th><th>Root cause</th><th>Unlock</th></tr>
+      <tr>
+        <td class="sym">Small models are dead — predict one class, bark recall 0</td>
+        <td>4-class task exceeds tiny-model capacity</td>
+        <td class="fix">Move to α=1.0 (F1 0.60) — breaks RAM budget</td>
+      </tr>
+      <tr>
+        <td class="sym">On device, <i>everything</i> reads "dog 0.97" — constant false alarms</td>
+        <td>PDM mic ~1300 DC offset; training audio is DC-free → <code>power_to_db(ref=max)</code> swamped → degenerate features</td>
+        <td class="fix">Subtract DC per clip → real bark scores 0.70, ambient stays ambient</td>
+      </tr>
+      <tr>
+        <td class="sym">α=1.0 inference freezes for <i>minutes</i></td>
+        <td>1.8 MB arena in OPI PSRAM → <code>Invoke()</code> intermittently stalls</td>
+        <td class="fix">Deploy small α=0.25 (0.46 MB) → stable real-time; trade accuracy for a working demo</td>
+      </tr>
+    </table>
+
+    <h2 style="margin-top:6mm">Hardware</h2>
+    <table class="hw">
+      <tr><td>Board</td><td>Seeed XIAO ESP32S3 Sense — 240 MHz, 8 MB flash, 8 MB OPI PSRAM</td></tr>
+      <tr><td>Mic</td><td>onboard PDM (I2S0): CLK 42, DATA 41</td></tr>
+      <tr><td>Speaker</td><td>MAX98357A (I2S1): BCLK D0, LRCLK D1, DIN D2</td></tr>
+      <tr><td>LED / Power</td><td>GPIO 21 · 500 mAh LiPo · 4 MB LittleFS for owner voice</td></tr>
+    </table>
+
+    <h2 style="margin-top:6mm">Status &amp; Next Steps</h2>
+    <p style="margin:1mm 0"><b>Works today:</b> full on-device pipeline; live bark/growl → LED + 1.5 s owner-voice + phone push; quiet ignored; real-time, no stalls (α=0.25).</p>
+    <ul>
+      <li><b>PSRAM/inference stability</b> for α=1.0 — the real blocker.</li>
+      <li>Train a <b>middle model (α≈0.75)</b> — possibly stable <i>and</i> accurate.</li>
+      <li>More data → lift bark recall, fix bark↔growl; re-add human-as-ambient.</li>
+      <li>Formal latency + battery measurement.</li>
+    </ul>
+  </section>
+
+</div>
+
+<section class="photos">
+  <h2>Hardware &amp; Enclosure</h2>
+  <div class="pgrid">
+    <div class="pcard"><img src="front-board.jpg"><div class="lbl">Assembled board — front</div></div>
+    <div class="pcard"><img src="back-board.jpg"><div class="lbl">Board — wiring (back)</div></div>
+    <div class="pcard"><img src="inside--enclosure.jpg"><div class="lbl">Inside the enclosure</div></div>
+    <div class="pcard"><img src="enclousure.jpg"><div class="lbl">Finished enclosure</div></div>
+  </div>
+</section>
+
+<div class="footer">BarkSense · DS-CNN from scratch · Keras → tf.lite INT8 → TFLite Micro on XIAO ESP32S3</div>
+</body>
+</html>

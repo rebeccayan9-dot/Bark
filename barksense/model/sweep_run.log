@@ -1,0 +1,135 @@
+2026-05-31 15:12:12.663590: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+Input shape: (120, 61, 1)  |  train n=750  val n=62  test n=256
+
+======================================================================
+=== α=1.0 ===
+======================================================================
+Epoch 1/50
+24/24 - 95s - 4s/step - accuracy: 0.4533 - loss: 1.1801 - val_accuracy: 0.6290 - val_loss: 1.3269 - val_macro_f1: 0.1931 - learning_rate: 0.0010
+Epoch 2/50
+24/24 - 87s - 4s/step - accuracy: 0.5533 - loss: 1.0142 - val_accuracy: 0.6290 - val_loss: 1.2854 - val_macro_f1: 0.1931 - learning_rate: 0.0010
+Epoch 3/50
+24/24 - 95s - 4s/step - accuracy: 0.6253 - loss: 0.9043 - val_accuracy: 0.6290 - val_loss: 1.2984 - val_macro_f1: 0.1931 - learning_rate: 0.0010
+Epoch 4/50
+24/24 - 90s - 4s/step - accuracy: 0.6947 - loss: 0.8158 - val_accuracy: 0.6290 - val_loss: 1.3272 - val_macro_f1: 0.1931 - learning_rate: 0.0010
+Epoch 5/50
+24/24 - 96s - 4s/step - accuracy: 0.7280 - loss: 0.7510 - val_accuracy: 0.6290 - val_loss: 1.3771 - val_macro_f1: 0.1931 - learning_rate: 0.0010
+Epoch 6/50
+24/24 - 109s - 5s/step - accuracy: 0.7533 - loss: 0.7033 - val_accuracy: 0.6290 - val_loss: 1.4459 - val_macro_f1: 0.1931 - learning_rate: 0.0010
+Epoch 7/50
+24/24 - 95s - 4s/step - accuracy: 0.7840 - loss: 0.6547 - val_accuracy: 0.6290 - val_loss: 1.5030 - val_macro_f1: 0.1931 - learning_rate: 5.0000e-04
+Epoch 8/50
+24/24 - 88s - 4s/step - accuracy: 0.7947 - loss: 0.6356 - val_accuracy: 0.6290 - val_loss: 1.5739 - val_macro_f1: 0.1931 - learning_rate: 5.0000e-04
+Epoch 9/50
+24/24 - 88s - 4s/step - accuracy: 0.7973 - loss: 0.6197 - val_accuracy: 0.6290 - val_loss: 1.6509 - val_macro_f1: 0.1931 - learning_rate: 5.0000e-04
+Epoch 10/50
+24/24 - 88s - 4s/step - accuracy: 0.8000 - loss: 0.6015 - val_accuracy: 0.6290 - val_loss: 1.7218 - val_macro_f1: 0.1931 - learning_rate: 5.0000e-04
+Epoch 11/50
+24/24 - 88s - 4s/step - accuracy: 0.8040 - loss: 0.5918 - val_accuracy: 0.6290 - val_loss: 1.7594 - val_macro_f1: 0.1931 - learning_rate: 5.0000e-04
+Epoch 12/50
+24/24 - 88s - 4s/step - accuracy: 0.8267 - loss: 0.5715 - val_accuracy: 0.5323 - val_loss: 1.7926 - val_macro_f1: 0.2418 - learning_rate: 2.5000e-04
+Epoch 13/50
+24/24 - 88s - 4s/step - accuracy: 0.8280 - loss: 0.5652 - val_accuracy: 0.3548 - val_loss: 1.8010 - val_macro_f1: 0.1774 - learning_rate: 2.5000e-04
+Epoch 14/50
+24/24 - 113s - 5s/step - accuracy: 0.8320 - loss: 0.5600 - val_accuracy: 0.2258 - val_loss: 1.8097 - val_macro_f1: 0.1270 - learning_rate: 2.5000e-04
+Epoch 15/50
+24/24 - 655s - 27s/step - accuracy: 0.8333 - loss: 0.5551 - val_accuracy: 0.2097 - val_loss: 1.7945 - val_macro_f1: 0.1190 - learning_rate: 2.5000e-04
+Epoch 16/50
+24/24 - 94s - 4s/step - accuracy: 0.8320 - loss: 0.5520 - val_accuracy: 0.1774 - val_loss: 1.8420 - val_macro_f1: 0.1040 - learning_rate: 2.5000e-04
+Epoch 17/50
+24/24 - 88s - 4s/step - accuracy: 0.8373 - loss: 0.5410 - val_accuracy: 0.1613 - val_loss: 1.8326 - val_macro_f1: 0.1002 - learning_rate: 2.5000e-04
+Epoch 18/50
+24/24 - 88s - 4s/step - accuracy: 0.8480 - loss: 0.5316 - val_accuracy: 0.1935 - val_loss: 1.6331 - val_macro_f1: 0.1831 - learning_rate: 1.2500e-04
+Epoch 19/50
+24/24 - 88s - 4s/step - accuracy: 0.8520 - loss: 0.5270 - val_accuracy: 0.2419 - val_loss: 1.5719 - val_macro_f1: 0.2350 - learning_rate: 1.2500e-04
+Epoch 20/50
+24/24 - 89s - 4s/step - accuracy: 0.8427 - loss: 0.5220 - val_accuracy: 0.2742 - val_loss: 1.4776 - val_macro_f1: 0.2497 - learning_rate: 1.2500e-04
+Epoch 21/50
+24/24 - 89s - 4s/step - accuracy: 0.8493 - loss: 0.5208 - val_accuracy: 0.3548 - val_loss: 1.3362 - val_macro_f1: 0.3923 - learning_rate: 1.2500e-04
+Epoch 22/50
+24/24 - 93s - 4s/step - accuracy: 0.8453 - loss: 0.5159 - val_accuracy: 0.3387 - val_loss: 1.2115 - val_macro_f1: 0.3355 - learning_rate: 1.2500e-04
+Epoch 23/50
+24/24 - 94s - 4s/step - accuracy: 0.8560 - loss: 0.5132 - val_accuracy: 0.3871 - val_loss: 1.0738 - val_macro_f1: 0.3614 - learning_rate: 1.2500e-04
+Epoch 24/50
+24/24 - 93s - 4s/step - accuracy: 0.8640 - loss: 0.5087 - val_accuracy: 0.4677 - val_loss: 0.9651 - val_macro_f1: 0.4422 - learning_rate: 1.2500e-04
+Epoch 25/50
+24/24 - 90s - 4s/step - accuracy: 0.8547 - loss: 0.5084 - val_accuracy: 0.5484 - val_loss: 0.8608 - val_macro_f1: 0.4809 - learning_rate: 1.2500e-04
+Epoch 26/50
+24/24 - 87s - 4s/step - accuracy: 0.8573 - loss: 0.5066 - val_accuracy: 0.5806 - val_loss: 0.7872 - val_macro_f1: 0.4928 - learning_rate: 1.2500e-04
+Epoch 27/50
+24/24 - 87s - 4s/step - accuracy: 0.8573 - loss: 0.5042 - val_accuracy: 0.6129 - val_loss: 0.7142 - val_macro_f1: 0.5093 - learning_rate: 1.2500e-04
+Epoch 28/50
+24/24 - 93s - 4s/step - accuracy: 0.8613 - loss: 0.4988 - val_accuracy: 0.6452 - val_loss: 0.6428 - val_macro_f1: 0.5264 - learning_rate: 1.2500e-04
+Epoch 29/50
+24/24 - 102s - 4s/step - accuracy: 0.8600 - loss: 0.4994 - val_accuracy: 0.6935 - val_loss: 0.5978 - val_macro_f1: 0.5746 - learning_rate: 1.2500e-04
+Epoch 30/50
+24/24 - 111s - 5s/step - accuracy: 0.8613 - loss: 0.4950 - val_accuracy: 0.6613 - val_loss: 0.6070 - val_macro_f1: 0.5538 - learning_rate: 1.2500e-04
+Epoch 31/50
+24/24 - 114s - 5s/step - accuracy: 0.8680 - loss: 0.4914 - val_accuracy: 0.7097 - val_loss: 0.5675 - val_macro_f1: 0.5852 - learning_rate: 1.2500e-04
+Epoch 32/50
+24/24 - 99s - 4s/step - accuracy: 0.8587 - loss: 0.4885 - val_accuracy: 0.7097 - val_loss: 0.5345 - val_macro_f1: 0.5860 - learning_rate: 1.2500e-04
+Epoch 33/50
+24/24 - 98s - 4s/step - accuracy: 0.8573 - loss: 0.4882 - val_accuracy: 0.7419 - val_loss: 0.5099 - val_macro_f1: 0.6115 - learning_rate: 1.2500e-04
+Epoch 34/50
+24/24 - 97s - 4s/step - accuracy: 0.8627 - loss: 0.4858 - val_accuracy: 0.7097 - val_loss: 0.5341 - val_macro_f1: 0.5878 - learning_rate: 1.2500e-04
+Epoch 35/50
+24/24 - 103s - 4s/step - accuracy: 0.8667 - loss: 0.4833 - val_accuracy: 0.7419 - val_loss: 0.4929 - val_macro_f1: 0.6160 - learning_rate: 1.2500e-04
+Epoch 36/50
+24/24 - 94s - 4s/step - accuracy: 0.8733 - loss: 0.4786 - val_accuracy: 0.6935 - val_loss: 0.5433 - val_macro_f1: 0.5754 - learning_rate: 1.2500e-04
+Epoch 37/50
+24/24 - 95s - 4s/step - accuracy: 0.8573 - loss: 0.4805 - val_accuracy: 0.7419 - val_loss: 0.5074 - val_macro_f1: 0.6160 - learning_rate: 1.2500e-04
+Epoch 38/50
+24/24 - 92s - 4s/step - accuracy: 0.8680 - loss: 0.4773 - val_accuracy: 0.7097 - val_loss: 0.5256 - val_macro_f1: 0.5878 - learning_rate: 1.2500e-04
+Epoch 39/50
+24/24 - 93s - 4s/step - accuracy: 0.8707 - loss: 0.4700 - val_accuracy: 0.7419 - val_loss: 0.5097 - val_macro_f1: 0.6160 - learning_rate: 1.2500e-04
+Epoch 40/50
+24/24 - 96s - 4s/step - accuracy: 0.8707 - loss: 0.4680 - val_accuracy: 0.7258 - val_loss: 0.5063 - val_macro_f1: 0.6012 - learning_rate: 1.2500e-04
+Epoch 41/50
+24/24 - 95s - 4s/step - accuracy: 0.8720 - loss: 0.4606 - val_accuracy: 0.7581 - val_loss: 0.4629 - val_macro_f1: 0.6325 - learning_rate: 6.2500e-05
+Epoch 42/50
+24/24 - 93s - 4s/step - accuracy: 0.8707 - loss: 0.4642 - val_accuracy: 0.7581 - val_loss: 0.4632 - val_macro_f1: 0.6325 - learning_rate: 6.2500e-05
+Epoch 43/50
+24/24 - 92s - 4s/step - accuracy: 0.8707 - loss: 0.4612 - val_accuracy: 0.7742 - val_loss: 0.4420 - val_macro_f1: 0.6513 - learning_rate: 6.2500e-05
+Epoch 44/50
+24/24 - 94s - 4s/step - accuracy: 0.8720 - loss: 0.4616 - val_accuracy: 0.7742 - val_loss: 0.4462 - val_macro_f1: 0.6513 - learning_rate: 6.2500e-05
+Epoch 45/50
+24/24 - 96s - 4s/step - accuracy: 0.8733 - loss: 0.4581 - val_accuracy: 0.7742 - val_loss: 0.4528 - val_macro_f1: 0.6513 - learning_rate: 6.2500e-05
+Epoch 46/50
+24/24 - 94s - 4s/step - accuracy: 0.8653 - loss: 0.4541 - val_accuracy: 0.7742 - val_loss: 0.4615 - val_macro_f1: 0.6513 - learning_rate: 6.2500e-05
+Epoch 47/50
+24/24 - 95s - 4s/step - accuracy: 0.8693 - loss: 0.4581 - val_accuracy: 0.7581 - val_loss: 0.4878 - val_macro_f1: 0.6325 - learning_rate: 6.2500e-05
+Epoch 48/50
+24/24 - 103s - 4s/step - accuracy: 0.8760 - loss: 0.4560 - val_accuracy: 0.7581 - val_loss: 0.4907 - val_macro_f1: 0.6325 - learning_rate: 6.2500e-05
+Epoch 49/50
+24/24 - 99s - 4s/step - accuracy: 0.8747 - loss: 0.4524 - val_accuracy: 0.7742 - val_loss: 0.4705 - val_macro_f1: 0.6513 - learning_rate: 3.1250e-05
+Epoch 50/50
+24/24 - 97s - 4s/step - accuracy: 0.8653 - loss: 0.4551 - val_accuracy: 0.7742 - val_loss: 0.4590 - val_macro_f1: 0.6513 - learning_rate: 3.1250e-05
+
+  Converting α=1.0 → float32…
+2026-05-31 16:40:33.015661: I tensorflow/core/grappler/devices.cc:75] Number of eligible GPUs (core count >= 8, compute capability >= 0.0): 0 (Note: TensorFlow was not compiled with CUDA or ROCm support)
+2026-05-31 16:40:33.017587: I tensorflow/core/grappler/clusters/single_machine.cc:361] Starting new session
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+W0000 00:00:1780270834.478983  306526 tf_tfl_flatbuffer_helpers.cc:390] Ignored output_format.
+W0000 00:00:1780270834.480375  306526 tf_tfl_flatbuffer_helpers.cc:393] Ignored drop_control_dependency.
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+    size=153.0KB arena≈7320.0KB  F1=0.592  recall=['0.38', '0.48', '0.72', '0.95']
+
+  Converting α=1.0 → int8…
+2026-05-31 16:40:43.032160: I tensorflow/core/grappler/devices.cc:75] Number of eligible GPUs (core count >= 8, compute capability >= 0.0): 0 (Note: TensorFlow was not compiled with CUDA or ROCm support)
+2026-05-31 16:40:43.032268: I tensorflow/core/grappler/clusters/single_machine.cc:361] Starting new session
+/Users/ry/Bark/barksense/.venv/lib/python3.12/site-packages/tensorflow/lite/python/convert.py:964: UserWarning: Statistics for quantized inputs were expected, but not specified; continuing anyway.
+  warnings.warn(
+W0000 00:00:1780270845.136909  306526 tf_tfl_flatbuffer_helpers.cc:390] Ignored output_format.
+W0000 00:00:1780270845.136950  306526 tf_tfl_flatbuffer_helpers.cc:393] Ignored drop_control_dependency.
+fully_quantize: 0, inference_type: 6, input_inference_type: INT8, output_inference_type: INT8
+    size= 64.3KB arena≈1830.0KB  F1=0.598  recall=['0.41', '0.39', '0.72', '0.98']
+
+==========================================================================================
+    α    quant   params  size(KB)  arena(KB)  macroF1  recall bark/growl/grunt/ambient
+==========================================================================================
+ 1.00  float32    39812     153.0     7320.0    0.592  0.38/0.48/0.72/0.95
+ 1.00     int8    39812      64.3     1830.0    0.598  0.41/0.39/0.72/0.98
+
+Results JSON → model/sweep_results.json
+Plot         → model/sweep_tradeoff.png
